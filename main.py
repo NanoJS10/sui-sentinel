@@ -29,6 +29,7 @@ from .agent import SentinelAgent
 from .config import SuiSentinelConfig
 from .monitor import TxEvent
 from . import static_scanner
+from . import report_generator
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 
@@ -82,7 +83,18 @@ def main():
                               "(pre-deployment, no network calls)")
     parser.add_argument("--json", type=str, default=None,
                          help="With --scan-source, also write findings to this JSON file")
+    parser.add_argument("--report", type=str, default=None, help="Path to findings JSON")
+    parser.add_argument("--out", type=str, default="sui_sentinel_report.html", help="HTML output path")
     args = parser.parse_args()
+
+    if args.report:
+        from pathlib import Path as _P
+        if not _P(args.report).exists():
+            parser.error(f"not found: {args.report}")
+        repo = _P(args.report).stem.replace("_findings","").replace("r_","")
+        out = report_generator.generate_html_report(args.report, args.out, repo)
+        print(f"Report written to {out}")
+        return
 
     if args.scan_source:
         root = Path(args.scan_source)

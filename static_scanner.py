@@ -93,13 +93,18 @@ class StaticScanResult:
     findings: List[StaticFinding] = field(default_factory=list)
 
 
+def _strip_block_comments(text: str) -> str:
+    """Remove /* ... */ block comments including multi-line ones."""
+    return re.sub(r'/\*.*?\*/', '', text, flags=re.DOTALL)
+
 def scan_file(path: Path) -> List[StaticFinding]:
     findings: List[StaticFinding] = []
     try:
-        text = path.read_text(errors="ignore")
+        raw = path.read_text(errors="ignore")
     except Exception:
         return findings
 
+    text = _strip_block_comments(raw)
     lines = text.splitlines()
     in_shift_fn = False
     fn_brace_depth = 0
@@ -130,17 +135,23 @@ def scan_file(path: Path) -> List[StaticFinding]:
             in_fee_reward_fn = True
             fee_fn_name = fee_fn_match.group(1)
             fee_fn_brace_depth = 0
-            findings.append(StaticFinding(
-                file=str(path), line_no=i, line=stripped,
-                rule="fee_reward_fn_declared",
-                note=(f"Function '{fee_fn_name}' looks like it computes fees, "
-                      "rewards, interest, or payouts. These are high-value "
-                      "manual-review targets: check rounding direction "
-                      "(who absorbs dust -- protocol or user?), division "
-                      "order, and whether small inputs can truncate to a "
-                      "free/zero-cost operation."),
-                severity_hint=3,
-            ))
+            # Only flag the function declaration if the same line or
+            # function signature contains a division or shift -- avoids
+            # flagging pure getter functions like get_reward_rate() that
+            # just return a stored value with no arithmetic at all.
+            if (DIVISION_PATTERN.search(stripped) or
+                    SHIFT_PATTERN.search(stripped) or
+                    DIVISION_BEFORE_MULT_PATTERN.search(stripped)):
+                findings.append(StaticFinding(
+                    file=str(path), line_no=i, line=stripped,
+                    rule="fee_reward_fn_declared",
+                    note=(f"Function '{fee_fn_name}' looks like it computes fees, "
+                          "rewards, interest, or payouts AND contains arithmetic "
+                          "on the same line. Manual-review target: check rounding "
+                          "direction, division order, and whether small inputs can "
+                          "truncate to a free/zero-cost operation."),
+                    severity_hint=3,
+                ))
 
         if in_shift_fn:
             fn_brace_depth += stripped.count("{") - stripped.count("}")
