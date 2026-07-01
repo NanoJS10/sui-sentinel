@@ -45,7 +45,7 @@ public fun checked_shlw_spec(n: u256): (u256, bool) {
 
 ## Testing results — 7 protocols scanned
 
-All scans run on July 1, 2026 against public GitHub repos using SuiSentinel v0.2.3.
+All scans run on July 1, 2026 against public GitHub repos using SuiSentinel v0.3.0.
 
 | Protocol | checked_shift_fn | div_before_mul | Notes |
 |---|---|---|---|
