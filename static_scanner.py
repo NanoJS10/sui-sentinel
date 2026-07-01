@@ -39,7 +39,7 @@ logger = logging.getLogger("sui_sentinel.static_scanner")
 SHIFT_PATTERN = re.compile(r"<<\s*\d+|<<\s*[a-zA-Z_]\w*")
 
 CHECKED_SHIFT_FN_PATTERN = re.compile(
-    r"fun\s+(checked_shl\w*|safe_shl\w*|\w*shl\w*)\s*\(", re.IGNORECASE
+    r"fun\s+(checked_shlw?\w*|safe_shlw?\w*|shl_checked\w*|shl_safe\w*)\s*\(", re.IGNORECASE
 )
 
 LARGE_LITERAL_PATTERN = re.compile(r"\b\d{15,}\b")
@@ -69,6 +69,12 @@ BPS_PATTERN = re.compile(r"\b(bps|basis_points?|percent(?:age)?)\b", re.IGNORECA
 # in_fee_reward_fn tracking below), since division itself is everywhere
 # and not inherently a bug outside that context.
 DIVISION_PATTERN = re.compile(r"[^/]/[^/]")
+# Safe fixed-point math library patterns -- suppress false positives
+# when division appears inside these wrappers.
+SAFE_MATH_PATTERN = re.compile(
+    r"fixed_point|math::(div|mul|sub|add)|decimal::|safe_math::|checked_div|checked_mul",
+    re.IGNORECASE,
+)
 
 
 @dataclass
@@ -144,7 +150,7 @@ def scan_file(path: Path) -> List[StaticFinding]:
         if in_fee_reward_fn:
             fee_fn_brace_depth += stripped.count("{") - stripped.count("}")
 
-            if DIVISION_BEFORE_MULT_PATTERN.search(code_only):
+            if DIVISION_BEFORE_MULT_PATTERN.search(code_only) and not SAFE_MATH_PATTERN.search(stripped):
                 findings.append(StaticFinding(
                     file=str(path), line_no=i, line=stripped,
                     rule="division_before_multiplication",
@@ -157,7 +163,7 @@ def scan_file(path: Path) -> List[StaticFinding]:
                     severity_hint=4,
                 ))
 
-            if DIVISION_PATTERN.search(code_only) and not DIVISION_BEFORE_MULT_PATTERN.search(code_only):
+            if DIVISION_PATTERN.search(code_only) and not DIVISION_BEFORE_MULT_PATTERN.search(code_only) and not SAFE_MATH_PATTERN.search(stripped):
                 findings.append(StaticFinding(
                     file=str(path), line_no=i, line=stripped,
                     rule="raw_division_in_fee_fn",
@@ -213,9 +219,9 @@ def scan_file(path: Path) -> List[StaticFinding]:
 def scan_directory(root: Path) -> StaticScanResult:
     result = StaticScanResult()
     for path in root.rglob("*.move"):
-        if any(part in {"tests", "test", "vendors", "vendor", "sui_x_oracle", "pyth_rule", "switchboard_rule", "supra_rule", "wormhole"} for part in path.parts):
+        if any(part in {"tests", "test", "vendors", "vendor", "sui_x_oracle", "pyth_rule", "switchboard_rule", "switchboard_sui", "supra_rule", "wormhole"} for part in path.parts):
             continue
-        if any(part in {"tests", "test", "vendors", "vendor", "sui_x_oracle", "pyth_rule", "switchboard_rule", "supra_rule", "wormhole"} for part in path.parts):
+        if any(part in {"tests", "test", "vendors", "vendor", "sui_x_oracle", "pyth_rule", "switchboard_rule", "switchboard_sui", "supra_rule", "wormhole"} for part in path.parts):
             continue
         result.files_scanned += 1
         result.findings.extend(scan_file(path))
