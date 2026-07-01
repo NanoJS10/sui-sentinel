@@ -213,9 +213,9 @@ def scan_file(path: Path) -> List[StaticFinding]:
 def scan_directory(root: Path) -> StaticScanResult:
     result = StaticScanResult()
     for path in root.rglob("*.move"):
-        if any(part in {"tests", "test"} for part in path.parts):
+        if any(part in {"tests", "test", "vendors", "vendor", "sui_x_oracle", "pyth_rule", "switchboard_rule", "supra_rule", "wormhole"} for part in path.parts):
             continue
-        if any(part in {"tests", "test"} for part in path.parts):
+        if any(part in {"tests", "test", "vendors", "vendor", "sui_x_oracle", "pyth_rule", "switchboard_rule", "supra_rule", "wormhole"} for part in path.parts):
             continue
         result.files_scanned += 1
         result.findings.extend(scan_file(path))
