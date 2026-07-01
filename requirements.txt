@@ -1,0 +1,3 @@
+requests>=2.31.0
+# optional, only needed if you wire up LLM escalation in classifier.py:
+# anthropic>=0.40.0
